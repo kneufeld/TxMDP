@@ -8,6 +8,9 @@ __license__ = 'MIT'
 __author__ = 'Kurt Neufeld'
 __email__ = 'kneufeld@burgundywall.com'
 
+import logging
+logger = logging.getLogger('txmdp.broker')
+
 from twisted.internet import reactor, defer, error
 from twisted.python.failure import Failure
 
@@ -39,19 +42,17 @@ class TxMDPBroker(object):
         self.backend = txzmq.ZmqRouterConnection(factory, self.backend_ep, 'broker_backend')
         self.backend.messageReceived = self.on_message
 
-        print "broker listening on:",self.backend
+        logger.info( "backend listening on: %s", self.backend )
 
         if frontend_ep is None:
-            print "front is back"
             self.frontend_ep = self.backend_ep
             self.frontend = self.backend
         else:
-            print "front is diff"
             self.frontend_ep = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.bind, frontend_ep)
             self.frontend = txzmq.ZmqRouterConnection(factory, self.frontend_ep, 'broker_frontend')
             self.frontend.messageReceived = self.on_message
 
-            print "broker listening on:",self.frontend
+            logger.info( "frontend listening on: %s", self.frontend )
 
         self._workers = {}
         # services contain the worker queue and the request queue
@@ -118,11 +119,13 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "registering worker", wid, service
+        logger.debug( "registering worker: %s", wid )
 
         if wid in self._workers:
             return
+
         self._workers[wid] = WorkerRep(self, wid, service)
+
         if service in self._services:
             wq, wr = self._services[service]
             wq.put(wid)
@@ -150,13 +153,15 @@ class TxMDPBroker(object):
             # not registered, ignore
             return
 
-        print "unregister_worker", wid
+        logger.debug( "unregistering worker: %s", wid )
 
         wrep.shutdown()
         service = wrep.service
+
         if service in self._services:
             wq, wr = self._services[service]
             wq.remove(wid)
+
         del self._workers[wid]
 
 
@@ -179,7 +184,7 @@ class TxMDPBroker(object):
         to_send = [ '', TxMDPBroker._mdp_worker_ver, b'\x05' ]
         self.backend.sendMultipart( wid, to_send )
         self.unregister_worker(wid)
-        return
+
 
     def client_response(self, rp, service, msg):
         """Package and send reply to client.
@@ -193,7 +198,8 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "client_response", rp, service, msg
+        logger.debug( "client(%s) -> response: %s", rp[0], msg )
+
         to_send = rp[1:] + [ b'', TxMDPBroker._mdp_client_ver, service]
         to_send.extend(msg)
 
@@ -212,6 +218,8 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
+        logger.debug( "worker(%s) <- ready message", rp[0] )
+
         ret_id = rp[0]
         self.register_worker(ret_id, msg[0])
 
@@ -228,7 +236,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "on_reply",msg
+        logger.debug( "worker(%s) <- reply: %s", rp[0], msg )
 
         ret_id = rp[0]
         wrep = self._workers.get(ret_id)
@@ -263,17 +271,18 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
+        logger.debug( "worker(%s) <- heartbeat", rp[0] )
+
         ret_id = rp[0]
 
-        #print "got heartbeat from", ret_id
         try:
             worker = self._workers[ret_id]
+
             if worker.is_alive():
                 worker.on_heartbeat()
         except KeyError:
-            # ignore HB for unknown worker
-            pass
-        return
+            pass # ignore HB for unknown worker
+
 
     def on_disconnect(self, rp, msg):
         """Process worker DISCONNECT command.
@@ -351,7 +360,8 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "BROKER: on_client", msg
+        logger.debug( "client(%s) <- %s", rp[0], msg )
+
         service = msg.pop(0)
 
         if service.startswith(b'mmi.'):
@@ -362,10 +372,9 @@ class TxMDPBroker(object):
             wq, wr = self._services[service]
             wid = wq.get()
             if not wid:
-                # no worker ready
-                # queue message
+                # no worker ready, queue message
                 msg.insert(0, service)
-                wr.append((proto, rp, msg))
+                wr.append( (proto, rp, msg) )
                 return
 
             to_send = [ b'', self._mdp_worker_ver, b'\x02']
@@ -375,10 +384,9 @@ class TxMDPBroker(object):
 
             self.backend.sendMultipart( wid, to_send )
         except KeyError:
-            # unknwon service
-            # ignore request
-            print 'broker has no service "%s"' % service
-        return
+            # unknwon service, ignore request
+            logger.warn( "unknown service: %s", service )
+
 
     def on_worker(self, proto, rp, msg):
         """Method called on worker message.
@@ -399,15 +407,16 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "BROKER: on_worker",msg
+        #logger.debug( "worker(%s) <- %s", rp[0], msg )
 
         cmd = msg.pop(0)
+
         if cmd in self._worker_cmds:
             fnc = self._worker_cmds[cmd]
             fnc(rp, msg)
         else:
-            # ignore unknown command
-            # DISCONNECT worker
+            # unknown command, DISCONNECT worker
+            logger.error( "worker(%s) <- unknown command: %s", rp[0], msg )
             self.disconnect(rp[0])
         return
 
@@ -423,17 +432,17 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "BROKER: on_message", msg
-
         rp, msg = split_address(msg)
+
         # dispatch on first frame after path
-        t = msg.pop(0)
-        if t.startswith(self._mdp_worker_ver):
-            self.on_worker(t, rp, msg)
-        elif t.startswith(self._mdp_client_ver):
-            self.on_client(t, rp, msg)
+        proto = msg.pop(0)
+
+        if proto.startswith(self._mdp_worker_ver):
+            self.on_worker(proto, rp, msg)
+        elif proto.startswith(self._mdp_client_ver):
+            self.on_client(proto, rp, msg)
         else:
-            print 'Broker unknown Protocol: "%s"' % t
+            logger.warn( "unknown protocol: %s", proto )
 
 
 class WorkerRep(object):
@@ -474,7 +483,7 @@ class WorkerRep(object):
             self.broker.unregister_worker( self.id )
             return
 
-        #print "broker sending heartbeat"
+        #logger( "heartbeat -> worker(%s)", self.id )
 
         hb_msg = [ b'', TxMDPBroker._mdp_worker_ver, b'\x04' ]
         self.broker.backend.sendMultipart( self.id, hb_msg )

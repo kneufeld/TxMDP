@@ -8,15 +8,13 @@ __license__ = 'MIT'
 __author__ = 'Kurt Neufeld'
 __email__ = 'kneufeld@burgundywall.com'
 
+import logging
+logger = logging.getLogger('txmdp.worker')
+
 from twisted.internet import reactor, defer, error
 from twisted.python.failure import Failure
 
 import txzmq
-
-import sys
-import time
-from pprint import pprint
-
 import zmq
 
 from util import split_address
@@ -83,10 +81,10 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
 
     def hb_recv_dec(self):
         self.curr_liveness -= 1
-        if self.curr_liveness == 0:
+        if self.curr_liveness <= 0:
             self._cancel( self._hb_send_timer )
             raise RuntimeError("got no heartbeat from broker")
-            # TODO: restart socket and whatnot
+            # FIXME: don't raise, restart socket and whatnot
 
         self.hb_recv()
 
@@ -97,7 +95,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         d = self.sendMultipart( ready_msg )
         self.curr_liveness = self._hb_liveness
 
-        print "sending register"
+        logger.debug( "worker(%s) -> ready message", self.service )
 
 
     def _cancel( self, call ):
@@ -137,7 +135,6 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         msg is a list w/ the message parts
         """
         msg = list(msg)
-        print "WORKER: _on_message", msg
 
         msg.pop(0)              # 1st part is empty
         proto = msg.pop(0)      # 2nd part is protocol version, TODO check ver
@@ -156,8 +153,8 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
 
             self.on_request(self,msg)
         else:
-            print "unknown message:",msg_type
-            pass
+            logger.warn( "worker(%s) <- unknown message: %s", self.service, msg )
+
 
     def on_request(self, worker, msg):
         """Public method called when a request arrived.

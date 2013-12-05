@@ -8,7 +8,21 @@ __license__ = 'MIT'
 __author__ = 'Kurt Neufeld'
 __email__ = 'kneufeld@burgundywall.com'
 
+import logging
+
+logger = logging.getLogger('txmdp')
+
+handler = logging.StreamHandler()
+handler.setFormatter( logging.Formatter('%(asctime)s %(name)s: %(message)s', "%H:%M:%S") )
+logger.handlers = [handler]
+
+logger.setLevel( logging.DEBUG )
+
 import txzmq
+
+# monkey patch the __str__ methods so they're compact and legible
+txzmq.ZmqEndpoint.__str__ = lambda self: "(%s,%s)" % (self[0],self[1])
+txzmq.ZmqConnection.__str__ = lambda self: "%s(%s)" % (self.__class__.__name__,",".join(map(str,self.endpoints)))
 
 factory = txzmq.ZmqFactory()
 factory.registerForShutdown()

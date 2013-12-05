@@ -58,14 +58,14 @@ class TestBroker( unittest.TestCase ):
         client = txmdp.make_socket( 'client', endpoint, 'service_a' )
 
         msg = 'get me some'
-        d = task.deferLater( reactor, 1, client.request, msg, 1 )
+        d = task.deferLater( reactor, 0.1, client.request, msg, 1 )
         d.addCallback( my_callback )
         d.addBoth( self.stop )
 
         reactor.run()
 
         self.assertEqual( called, [True] )
-        self.assertEqual( [ msg ], self.successResultOf(d) )
+        self.assertEqual( [msg], self.successResultOf(d) )
         client.shutdown()
 
 

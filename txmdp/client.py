@@ -8,6 +8,9 @@ __license__ = 'MIT'
 __author__ = 'Kurt Neufeld'
 __email__ = 'kneufeld@burgundywall.com'
 
+import logging
+logger = logging.getLogger('txmdp.client')
+
 from twisted.internet import reactor, defer, error
 from twisted.python.failure import Failure
 
@@ -40,7 +43,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         self.d_waiting = None
         self.d_timeout = None
 
-        print "client connecting to:",self
+        logger.info( "creating client: %s", self )
 
     @property
     def service(self):
@@ -63,7 +66,6 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         """
         call after an error or received message
         """
-        print "reset"
         self._cancel_timeout()
         self.d_waiting = None
 
@@ -78,7 +80,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
 
         :rtype Deferred
         """
-        print "client sending request:", msg
+        logger.debug( "request: client(%s) -> %s", self.service, msg )
 
         if not self.is_open:
             raise RuntimeError("socket is closed")
@@ -110,8 +112,9 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :param timeout: fractional time in seconds
         :type timeout:  float
         """
-        if not timeout: return
-        print "starting timer",timeout
+        if not timeout:
+            return
+
         self.d_timeout = reactor.callLater( timeout, self._on_timeout )
 
     def _cancel_timeout(self):
@@ -130,9 +133,8 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         internal callback for when our request times out
         fire d_waiting as an error
         """
-        print "TIMED OUT"
+        logger.warn( "client(%s) timed out", self.service )
         self.d_waiting.errback( RequestTimeout() )
-        #self.reset()
 
     def _on_message(self, msg):
         """
@@ -142,13 +144,11 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :param msg:   list of message frames
         :type msg:    list of str
         """
-        print "CLIENT: _on_message", msg
+        logger.debug( "client(%s) <- %s", self.service, msg )
         self._cancel_timeout()
 
         msg.pop(0) # proto ver
         msg.pop(0) # service
-        #self.d_waiting.callback(msg)
-        #self.reset()
         return msg
 
 
