@@ -24,7 +24,7 @@ def make_socket( mdp_type, endpoint, service ):
     if mdp_type == 'broker':
         return TxMDPBroker( factory, endpoint, frontend_ep=service )
     if mdp_type == 'worker':
-        return txzmq.ZmqREQConnection( factory, endpoint, service )
+        return TxMDPWorker( factory, endpoint, service )
 
 
 class RequestTimeout(RuntimeError):
@@ -34,5 +34,5 @@ class RequestTimeout(RuntimeError):
 
 from client import TxMDPClient
 from broker import TxMDPBroker
-#from worker import TxMDPWorker
+from worker import TxMDPWorker
 

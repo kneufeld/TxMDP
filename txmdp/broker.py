@@ -13,8 +13,6 @@ from twisted.python.failure import Failure
 
 import txzmq
 
-from . import RequestTimeout
-
 #import zmq
 #from zmq.eventloop.zmqstream import ZMQStream
 #from zmq.eventloop.ioloop import PeriodicCallback
@@ -45,6 +43,8 @@ class TxMDPBroker(object):
         self.backend = txzmq.ZmqRouterConnection(factory, self.backend_ep, 'broker_backend')
         self.backend.messageReceived = self.on_message
 
+        print "broker listening on:",self.backend
+
         if frontend_ep is None:
             self.frontend_ep = self.backend_ep
             self.frontend = self.backend
@@ -52,6 +52,8 @@ class TxMDPBroker(object):
             self.frontend_ep = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.bind, frontend_ep)
             self.frontend = txzmq.ZmqDealerConnection(factory, self.frontend_ep, 'broker_frontend')
             self.frontend.messageReceived = self.on_message
+
+            print "broker listening on:",self.frontend
 
         self._workers = {}
         # services contain the worker queue and the request queue
@@ -84,17 +86,23 @@ class TxMDPBroker(object):
         """
         self.reset()
 
-        self.backend.shutdown()
-        if self.frontend is not self.backend:
+        if self.backend.socket:
+            self.backend.shutdown()
+
+        if self.frontend.socket:
             self.frontend.shutdown() # shutdown() not idempotent
 
         self._services = {}
 
-    def reset(self):
+    def _cancel( self, timer ):
         try:
-            self.hb_check_timer.cancel()
+            timer.cancel()
         except (AttributeError,error.AlreadyCalled,error.AlreadyCancelled):
             pass
+        timer = None
+
+    def reset(self):
+        self._cancel( self.hb_check_timer )
 
         for wrep in self._workers.values():
             self.unregister_worker( wrep.id )
@@ -112,9 +120,11 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
+        print "registering worker", wid, service
+
         if wid in self._workers:
             return
-        self._workers[wid] = WorkerRep(self.WORKER_PROTO, wid, service, self.main_stream)
+        self._workers[wid] = WorkerRep(self, wid, service)
         if service in self._services:
             wq, wr = self._services[service]
             wq.put(wid)
@@ -141,6 +151,9 @@ class TxMDPBroker(object):
         except KeyError:
             # not registered, ignore
             return
+
+        print "unregister_worker", wid
+
         wrep.shutdown()
         service = wrep.service
         if service in self._services:
@@ -247,6 +260,8 @@ class TxMDPBroker(object):
         :rtype: None
         """
         ret_id = rp[0]
+
+        print "got heartbeat from", ret_id
         try:
             worker = self._workers[ret_id]
             if worker.is_alive():
@@ -332,11 +347,13 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
+        print "got client msg", msg
         service = msg.pop(0)
-        print 'on_client', service
+
         if service.startswith(b'mmi.'):
             self.on_mmi(rp, service, msg)
             return
+
         try:
             wq, wr = self._services[service]
             wid = wq.get()
@@ -347,11 +364,13 @@ class TxMDPBroker(object):
                 wr.append((proto, rp, msg))
                 return
             wrep = self._workers[wid]
-            to_send = [ wrep.id, b'', self.WORKER_PROTO, b'\x02']
+            to_send = []
+            #to_send = [ wrep.id, b'', self._mdp_worker_ver, b'\x02']
             to_send.extend(rp)
             to_send.append(b'')
             to_send.extend(msg)
-            self.main_stream.send_multipart(to_send)
+
+            self.frontend.sendMultipart( to_send )
         except KeyError:
             # unknwon service
             # ignore request
@@ -377,6 +396,8 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
+        print "got worker msg", msg
+
         cmd = msg.pop(0)
         if cmd in self._worker_cmds:
             fnc = self._worker_cmds[cmd]
@@ -428,36 +449,40 @@ class WorkerRep(object):
     :type stream:    ZMQStream
     """
 
-    def __init__(self, proto, wid, service, stream):
-        self.proto = proto
+    def __init__(self, broker, wid, service):
+        self.broker = broker
         self.id = wid
         self.service = service
-        self.curr_liveness = HB_LIVENESS
-        self.stream = stream
-        self.last_hb = 0
-        self.hb_out_timer = PeriodicCallback(self.send_hb, HB_INTERVAL)
-        self.hb_out_timer.start()
-        return
+        self.curr_liveness = TxMDPBroker._hb_liveness
 
-    def send_hb(self):
-        """Called on every HB_INTERVAL.
+        self.hb_send()
 
-        Decrements the current liveness by one.
 
-        Sends heartbeat to worker.
+    def hb_start_timer(self):
+        self._hb_send_timer = reactor.callLater( TxMDPBroker._hb_interval, self.hb_send )
+
+    def hb_send(self):
+        """Construct and send HB message to broker.
         """
+
         self.curr_liveness -= 1
-        msg = [ self.id, b'', self.proto, b'\x04' ]
-        self.stream.send_multipart(msg)
-        return
+        if self.curr_liveness == 0:
+            self.broker.unregister_worker( self.id )
+            return
+
+        print "broker sending heartbeat"
+
+        hb_msg = [ b'', TxMDPBroker._mdp_worker_ver, b'\x04' ]
+        self.broker.backend.sendMultipart( self.id, hb_msg )
+        self.hb_start_timer()
 
     def on_heartbeat(self):
         """Called when a heartbeat message from the worker was received.
 
         Sets current liveness to HB_LIVENESS.
         """
-        self.curr_liveness = HB_LIVENESS
-        return
+        self.curr_liveness = TxMDPBroker._hb_liveness
+
 
     def is_alive(self):
         """Returns True when the worker is considered alive.
@@ -469,10 +494,7 @@ class WorkerRep(object):
 
         Stops timer.
         """
-        self.hb_out_timer.stop()
-        self.hb_out_timer = None
-        self.stream = None
-        return
+        self.broker._cancel( self._hb_send_timer )
 
 
 class ServiceQueue(object):
@@ -514,10 +536,10 @@ class ServiceQueue(object):
         if not self.q:
             return None
         return self.q.pop(0)
-#
-###
 
-### Local Variables:
-### buffer-file-coding-system: utf-8
-### mode: python
-### End:
+
+if __name__ == "__main__":
+    from txmdp import make_socket
+    endpoint = 'tcp://127.0.0.1:5656'
+    broker = make_socket( 'broker', endpoint, None )
+    reactor.run()

@@ -1,6 +1,7 @@
 #!/usr/bin/env trial
 
 #import unittest
+import time
 from twisted.trial import unittest
 from twisted.internet import task
 
@@ -13,13 +14,14 @@ class TestBroker( unittest.TestCase ):
         self.endpoint = 'tcp://127.0.0.1:5656'
         self.broker = txmdp.make_socket( 'broker', self.endpoint, None )
         self.clock = task.Clock()
-        reactor.callLater = self.clock.callLater
+        #reactor.callLater = self.clock.callLater
 
     def tearDown(self):
         self.broker.shutdown()
 
-    def stop(self):
+    def stop(self, msg):
         reactor.stop()
+        return msg
 
     def test_creation(self):
         self.assertTrue( isinstance(self.broker, txmdp.TxMDPBroker) )
@@ -31,28 +33,37 @@ class TestBroker( unittest.TestCase ):
         self.broker = txmdp.make_socket( 'broker', self.endpoint, 'tcp://127.0.0.1:5657' )
         self.assertIsNot( self.broker.backend, self.broker.frontend )
 
-    def _test_recv_garbage(self):
+    def test_recv_garbage(self):
 
         called = []
-        def my_callback(self,msg):
+        def my_callback(msg):
             called.append(True)
+            print "my_callback", msg
+            return msg
+
+        def on_request( msg ):
+            print "on_request", msg
             print msg
 
-        client = txmdp.make_socket( 'client', self.endpoint, 'service_a' )
-        d = client.request( 'gimmee stuff' )
+        #self.broker.shutdown()
+        #self.broker = txmdp.make_socket( 'broker', self.endpoint, 'tcp://127.0.0.1:5657' )
+
+        worker = txmdp.make_socket( 'worker', self.endpoint, 'service_a' )
+        worker.on_request = on_request
+
+        endpoint = 'tcp://127.0.0.1:5657'
+        client = txmdp.make_socket( 'client', endpoint, 'service_a' )
+
+        msg = 'get me some'
+        d = task.deferLater( reactor, 1, client.request, msg, 1 )
         d.addCallback( my_callback )
         d.addBoth( self.stop )
 
-        print "here"
         reactor.run()
 
-        msg = self.successResultOf(d)
-        #msg = yield d
-        print "msg",msg
-
-        #self.assertEqual( called, [True] )
+        self.assertEqual( called, [True] )
+        self.assertEqual( [ msg ], self.successResultOf(d) )
         client.shutdown()
-
 
 
     def _test_timeout(self):

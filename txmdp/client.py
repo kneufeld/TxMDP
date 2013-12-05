@@ -13,7 +13,7 @@ from twisted.python.failure import Failure
 
 import txzmq
 
-from . import RequestTimeout
+from txmdp import RequestTimeout
 
 class TxMDPClient( txzmq.ZmqREQConnection ):
     """
@@ -40,6 +40,8 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         self.d_waiting = None
         self.d_timeout = None
 
+        print "client connecting to:",self
+
     @property
     def service(self):
         return self.identity
@@ -54,12 +56,14 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
 
     def shutdown(self):
         self.reset()
-        super(TxMDPClient,self).shutdown()
+        if self.is_open:
+            super(TxMDPClient,self).shutdown()
 
     def reset(self):
         """
         call after an error or received message
         """
+        print "reset"
         self._cancel_timeout()
         self.d_waiting = None
 
@@ -74,6 +78,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
 
         :rtype Deferred
         """
+        print "client sending request:", msg
 
         if not self.is_open:
             raise RuntimeError("socket is closed")
@@ -86,7 +91,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
             # or to reset() and return None so the next call to request() will work
             return
 
-        if isinstance( msg, str ):
+        if not isinstance( msg, list ):
             msg = [msg]
 
         outgoing = self._prefix + msg
@@ -106,6 +111,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :type timeout:  float
         """
         if not timeout: return
+        print "starting timer",timeout
         self.d_timeout = reactor.callLater( timeout, self._on_timeout )
 
     def _cancel_timeout(self):
@@ -114,18 +120,19 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         """
         try:
             self.d_timeout.cancel()
-        except (AttributeError,error.AlreadyCalled):
+        except (AttributeError,error.AlreadyCalled,error.AlreadyCancelled):
             pass
 
         self.d_timeout = None
 
-    def _on_timeout(self, *ignored):
+    def _on_timeout(self):
         """
         internal callback for when our request times out
         fire d_waiting as an error
         """
+        print "TIMED OUT"
         self.d_waiting.errback( RequestTimeout() )
-        self.reset()
+        #self.reset()
 
     def _on_message(self, msg):
         """
@@ -135,6 +142,23 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :param msg:   list of message frames
         :type msg:    list of str
         """
-        self.d_waiting.callback(msg)
-        self.reset()
+        self._cancel_timeout()
+        print "client::_on_message", msg
+        #self.d_waiting.callback(msg)
+        #self.reset()
+        return msg
 
+
+if __name__ == "__main__":
+    from twisted.internet import task
+
+    def stop(*args):
+        reactor.stop()
+
+    from txmdp import make_socket
+    endpoint = 'tcp://127.0.0.1:5656'
+    client = make_socket( 'client', endpoint, 'service_a' )
+    d = client.request("get me some", 0.25)
+    d.addBoth( stop )
+
+    reactor.run()
