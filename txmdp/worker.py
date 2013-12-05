@@ -119,13 +119,15 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
 
         msg can either be a byte-string or a list of byte-strings.
         """
-        to_send = self.envelope
-        self.envelope = None
-
         if not isinstance(msg, list):
             msg = [msg]
 
+        to_send = self.envelope
         to_send.extend(msg)
+
+        self.envelope = None
+
+        logger.debug( "worker(%s) -> %s", self.identity, to_send )
         self.sendMultipart(to_send)
 
 
@@ -135,6 +137,8 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         msg is a list w/ the message parts
         """
         msg = list(msg)
+
+        logger.debug( "worker(%s) <- %s", self.identity, msg )
 
         msg.pop(0)              # 1st part is empty
         proto = msg.pop(0)      # 2nd part is protocol version, TODO check ver

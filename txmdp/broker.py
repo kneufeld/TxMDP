@@ -385,7 +385,7 @@ class TxMDPBroker(object):
             to_send.append(b'')
             to_send.extend(msg)
 
-            logger.debug( "worker(%s) -> %s", wid, to_send )
+            logger.debug( "%s -> worker(%s)", to_send, wid )
             self.backend.sendMultipart( wid, to_send )
         except KeyError:
             # unknwon service, ignore request
@@ -488,7 +488,7 @@ class WorkerRep(object):
             self.broker.unregister_worker( self.id )
             return
 
-        #logger( "heartbeat -> worker(%s)", self.id )
+        logger.debug( "heartbeat -> worker(%s)", self.id )
 
         hb_msg = [ b'', TxMDPBroker._mdp_worker_ver, b'\x04' ]
         self.broker.backend.sendMultipart( self.id, hb_msg )
