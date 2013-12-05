@@ -14,6 +14,7 @@ logger = logging.getLogger('txmdp.worker')
 from twisted.internet import reactor, defer, error
 from twisted.python.failure import Failure
 
+import uuid
 import txzmq
 import zmq
 
@@ -48,19 +49,18 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         :param service:  the worker service to use
         :type service:   str
         """
-        self.endpoint = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.connect, endpoint)
-        super(TxMDPWorker,self).__init__(factory, self.endpoint, service)
+        identity = str(uuid.uuid4())[:8] # 8 random chars outta be good enough for anybody
 
+        self.endpoint = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.connect, endpoint)
+        super(TxMDPWorker,self).__init__(factory, self.endpoint, identity)
+
+        self.service = service
         self.gotMessage = self._on_message
 
         self._send_ready()
 
         self.hb_send()
         self.hb_recv()
-
-    @property
-    def service(self):
-        return self.identity
 
     @property
     def is_open(self):
