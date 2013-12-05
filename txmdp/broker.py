@@ -127,12 +127,12 @@ class TxMDPBroker(object):
         self._workers[wid] = WorkerRep(self, wid, service)
 
         if service in self._services:
-            wq, wr = self._services[service]
-            wq.put(wid)
+            wqueue, wr = self._services[service]
+            wqueue.put(wid)
         else:
-            q = ServiceQueue()
-            q.put(wid)
-            self._services[service] = (q, [])
+            wqueue = ServiceQueue()
+            wqueue.put(wid)
+            self._services[service] = (wqueue, [])
 
 
     def unregister_worker(self, wid):
@@ -159,8 +159,8 @@ class TxMDPBroker(object):
         service = wrep.service
 
         if service in self._services:
-            wq, wr = self._services[service]
-            wq.remove(wid)
+            wqueue, wr = self._services[service]
+            wqueue.remove(wid)
 
         del self._workers[wid]
 
@@ -180,6 +180,8 @@ class TxMDPBroker(object):
         except KeyError:
             # not registered, ignore
             return
+
+        logger.info( "disconnecting worker(%s)", wid )
 
         to_send = [ '', TxMDPBroker._mdp_worker_ver, b'\x05' ]
         self.backend.sendMultipart( wid, to_send )
@@ -248,17 +250,18 @@ class TxMDPBroker(object):
 
         # make worker available again
         try:
-            wq, wr = self._services[service]
+            wqueue, wr = self._services[service]
             cp, msg = split_address(msg)
 
             self.client_response(cp, service, msg)
 
-            wq.put(wrep.id)
+            wqueue.put(wrep.id)
             if wr:
                 proto, rp, msg = wr.pop(0)
                 self.on_client(proto, rp, msg)
         except KeyError:
             # unknown service
+            logger.warn( "worker(%s): unknown service: %s", rp[0], service )
             self.disconnect(ret_id)
 
     def on_heartbeat(self, rp, msg):
@@ -369,8 +372,8 @@ class TxMDPBroker(object):
             return
 
         try:
-            wq, wr = self._services[service]
-            wid = wq.get()
+            wqueue, wr = self._services[service]
+            wid = wqueue.get()
             if not wid:
                 # no worker ready, queue message
                 msg.insert(0, service)
@@ -382,10 +385,11 @@ class TxMDPBroker(object):
             to_send.append(b'')
             to_send.extend(msg)
 
+            logger.debug( "worker(%s) -> %s", wid, to_send )
             self.backend.sendMultipart( wid, to_send )
         except KeyError:
             # unknwon service, ignore request
-            logger.warn( "unknown service: %s", service )
+            logger.warn( "client(%s) asked for unknown service: %s", rp[0], service )
 
 
     def on_worker(self, proto, rp, msg):
@@ -432,6 +436,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
+        #logger.debug( "INCOMING: %s", msg )
         rp, msg = split_address(msg)
 
         # dispatch on first frame after path
