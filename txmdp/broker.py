@@ -45,15 +45,18 @@ class TxMDPBroker(object):
 
         print "broker listening on:",self.backend
 
-        if frontend_ep is None:
-            self.frontend_ep = self.backend_ep
-            self.frontend = self.backend
-        else:
-            self.frontend_ep = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.bind, frontend_ep)
-            self.frontend = txzmq.ZmqDealerConnection(factory, self.frontend_ep, 'broker_frontend')
-            self.frontend.messageReceived = self.on_message
+        if True:
+            if frontend_ep is None:
+                print "front is back"
+                self.frontend_ep = self.backend_ep
+                self.frontend = self.backend
+            else:
+                print "front is diff"
+                self.frontend_ep = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.bind, frontend_ep)
+                self.frontend = txzmq.ZmqDealerConnection(factory, self.frontend_ep, 'broker_frontend')
+                self.frontend.messageReceived = self.on_message
 
-            print "broker listening on:",self.frontend
+                print "broker listening on:",self.frontend
 
         self._workers = {}
         # services contain the worker queue and the request queue
@@ -229,6 +232,8 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
+        print "on_reply"
+
         ret_id = rp[0]
         wrep = self._workers.get(ret_id)
         if not wrep:
@@ -347,7 +352,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "got client msg", msg
+        print "BROKER: on_client", msg
         service = msg.pop(0)
 
         if service.startswith(b'mmi.'):
@@ -363,14 +368,16 @@ class TxMDPBroker(object):
                 msg.insert(0, service)
                 wr.append((proto, rp, msg))
                 return
+
             wrep = self._workers[wid]
             to_send = []
-            #to_send = [ wrep.id, b'', self._mdp_worker_ver, b'\x02']
+            to_send = [ wrep.id, b'', self._mdp_worker_ver, b'\x02']
+            to_send = [ b'', self._mdp_worker_ver, b'\x02']
             to_send.extend(rp)
             to_send.append(b'')
             to_send.extend(msg)
 
-            self.frontend.sendMultipart( to_send )
+            self.backend.sendMultipart( wrep.id, to_send )
         except KeyError:
             # unknwon service
             # ignore request

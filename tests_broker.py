@@ -45,13 +45,16 @@ class TestBroker( unittest.TestCase ):
             print "on_request", msg
             print msg
 
-        #self.broker.shutdown()
-        #self.broker = txmdp.make_socket( 'broker', self.endpoint, 'tcp://127.0.0.1:5657' )
+        if True:
+            self.broker.shutdown()
+            endpoint = 'tcp://127.0.0.1:5657'
+            self.broker = txmdp.make_socket( 'broker', self.endpoint, endpoint )
+        else:
+            endpoint = 'tcp://127.0.0.1:5656'
 
         worker = txmdp.make_socket( 'worker', self.endpoint, 'service_a' )
         worker.on_request = on_request
 
-        endpoint = 'tcp://127.0.0.1:5657'
         client = txmdp.make_socket( 'client', endpoint, 'service_a' )
 
         msg = 'get me some'

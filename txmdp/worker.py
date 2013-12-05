@@ -139,7 +139,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         msg is a list w/ the message parts
         """
         msg = list(msg)
-        print "worker _on_message", msg
+        print "WORKER _on_message", msg
 
         msg.pop(0)              # 1st part is empty
         proto = msg.pop(0)      # 2nd part is protocol version, TODO check ver
