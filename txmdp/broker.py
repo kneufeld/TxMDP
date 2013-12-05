@@ -13,10 +13,6 @@ from twisted.python.failure import Failure
 
 import txzmq
 
-#import zmq
-#from zmq.eventloop.zmqstream import ZMQStream
-#from zmq.eventloop.ioloop import PeriodicCallback
-
 from util import split_address
 
 
@@ -45,18 +41,17 @@ class TxMDPBroker(object):
 
         print "broker listening on:",self.backend
 
-        if True:
-            if frontend_ep is None:
-                print "front is back"
-                self.frontend_ep = self.backend_ep
-                self.frontend = self.backend
-            else:
-                print "front is diff"
-                self.frontend_ep = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.bind, frontend_ep)
-                self.frontend = txzmq.ZmqDealerConnection(factory, self.frontend_ep, 'broker_frontend')
-                self.frontend.messageReceived = self.on_message
+        if frontend_ep is None:
+            print "front is back"
+            self.frontend_ep = self.backend_ep
+            self.frontend = self.backend
+        else:
+            print "front is diff"
+            self.frontend_ep = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.bind, frontend_ep)
+            self.frontend = txzmq.ZmqRouterConnection(factory, self.frontend_ep, 'broker_frontend')
+            self.frontend.messageReceived = self.on_message
 
-                print "broker listening on:",self.frontend
+            print "broker listening on:",self.frontend
 
         self._workers = {}
         # services contain the worker queue and the request queue
@@ -180,8 +175,9 @@ class TxMDPBroker(object):
         except KeyError:
             # not registered, ignore
             return
-        to_send = [ wid, self.WORKER_PROTO, b'\x05' ]
-        self.main_stream.send_multipart(to_send)
+
+        to_send = [ '', TxMDPBroker._mdp_worker_ver, b'\x05' ]
+        self.backend.sendMultipart( wid, to_send )
         self.unregister_worker(wid)
         return
 
@@ -197,11 +193,11 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        to_send = rp[:]
-        to_send.extend([b'', self.CLIENT_PROTO, service])
+        print "client_response", rp, service, msg
+        to_send = rp[1:] + [ b'', TxMDPBroker._mdp_client_ver, service]
         to_send.extend(msg)
-        self.client_stream.send_multipart(to_send)
-        return
+
+        self.frontend.sendMultipart( rp[0], to_send )
 
 
     def on_ready(self, rp, msg):
@@ -218,7 +214,7 @@ class TxMDPBroker(object):
         """
         ret_id = rp[0]
         self.register_worker(ret_id, msg[0])
-        return
+
 
     def on_reply(self, rp, msg):
         """Process worker REPLY command.
@@ -232,19 +228,23 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "on_reply"
+        print "on_reply",msg
 
         ret_id = rp[0]
         wrep = self._workers.get(ret_id)
         if not wrep:
             # worker not found, ignore message
             return
+
         service = wrep.service
+
         # make worker available again
         try:
             wq, wr = self._services[service]
             cp, msg = split_address(msg)
+
             self.client_response(cp, service, msg)
+
             wq.put(wrep.id)
             if wr:
                 proto, rp, msg = wr.pop(0)
@@ -252,7 +252,6 @@ class TxMDPBroker(object):
         except KeyError:
             # unknown service
             self.disconnect(ret_id)
-        return
 
     def on_heartbeat(self, rp, msg):
         """Process worker HEARTBEAT command.
@@ -266,7 +265,7 @@ class TxMDPBroker(object):
         """
         ret_id = rp[0]
 
-        print "got heartbeat from", ret_id
+        #print "got heartbeat from", ret_id
         try:
             worker = self._workers[ret_id]
             if worker.is_alive():
@@ -369,15 +368,12 @@ class TxMDPBroker(object):
                 wr.append((proto, rp, msg))
                 return
 
-            wrep = self._workers[wid]
-            to_send = []
-            to_send = [ wrep.id, b'', self._mdp_worker_ver, b'\x02']
             to_send = [ b'', self._mdp_worker_ver, b'\x02']
             to_send.extend(rp)
             to_send.append(b'')
             to_send.extend(msg)
 
-            self.backend.sendMultipart( wrep.id, to_send )
+            self.backend.sendMultipart( wid, to_send )
         except KeyError:
             # unknwon service
             # ignore request
@@ -403,7 +399,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "got worker msg", msg
+        print "BROKER: on_worker",msg
 
         cmd = msg.pop(0)
         if cmd in self._worker_cmds:
@@ -427,7 +423,8 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        print "HOLY SHIT, got a message", msg
+        print "BROKER: on_message", msg
+
         rp, msg = split_address(msg)
         # dispatch on first frame after path
         t = msg.pop(0)
@@ -477,7 +474,7 @@ class WorkerRep(object):
             self.broker.unregister_worker( self.id )
             return
 
-        print "broker sending heartbeat"
+        #print "broker sending heartbeat"
 
         hb_msg = [ b'', TxMDPBroker._mdp_worker_ver, b'\x04' ]
         self.broker.backend.sendMultipart( self.id, hb_msg )

@@ -142,8 +142,11 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :param msg:   list of message frames
         :type msg:    list of str
         """
+        print "CLIENT: _on_message", msg
         self._cancel_timeout()
-        print "client::_on_message", msg
+
+        msg.pop(0) # proto ver
+        msg.pop(0) # service
         #self.d_waiting.callback(msg)
         #self.reset()
         return msg

@@ -78,8 +78,6 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         self.sendMultipart( hb_msg )
         self.hb_start_timer()
 
-        print "worker %s sending heartbeat" % self.service
-
     def hb_recv(self):
         self._hb_recv_timer = reactor.callLater( self._hb_interval, self.hb_recv_dec )
 
@@ -130,7 +128,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
             msg = [msg]
 
         to_send.extend(msg)
-        self.sendMultipart(*to_send)
+        self.sendMultipart(to_send)
 
 
     def _on_message(self, *msg):
@@ -139,7 +137,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         msg is a list w/ the message parts
         """
         msg = list(msg)
-        print "WORKER _on_message", msg
+        print "WORKER: _on_message", msg
 
         msg.pop(0)              # 1st part is empty
         proto = msg.pop(0)      # 2nd part is protocol version, TODO check ver
@@ -148,7 +146,6 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         if msg_type == b'\x05': # disconnect
             self.curr_liveness = 0 # reconnect will be triggered by hb timer
         elif msg_type == b'\x04': # heartbeat
-            print "received heartbeat from broker"
             self.curr_liveness = self._hb_liveness
         elif msg_type == b'\x02': # request
             # remaining parts are the user message
@@ -157,12 +154,12 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
             envelope = [ b'', self._mdp_ver, b'\x03'] + envelope # REPLY
             self.envelope = envelope
 
-            self.on_request(msg)
+            self.on_request(self,msg)
         else:
             print "unknown message:",msg_type
             pass
 
-    def on_request(self, msg):
+    def on_request(self, worker, msg):
         """Public method called when a request arrived.
 
         Must be overloaded!

@@ -41,9 +41,9 @@ class TestBroker( unittest.TestCase ):
             print "my_callback", msg
             return msg
 
-        def on_request( msg ):
+        def on_request( worker, msg ):
             print "on_request", msg
-            print msg
+            worker.reply(msg)
 
         if True:
             self.broker.shutdown()
