@@ -167,6 +167,11 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         """
         pass
 
+class TxWorkerEcho( TxMDPWorker ):
+    def on_request( self, _, msg ):
+        self.reply(msg)
+
+
 if __name__ == "__main__":
     from txmdp import make_socket
     endpoint = 'tcp://127.0.0.1:5656'

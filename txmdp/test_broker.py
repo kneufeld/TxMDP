@@ -1,12 +1,11 @@
 #!/usr/bin/env trial
 
-#import unittest
-import time
 from twisted.trial import unittest
 from twisted.internet import task
 
 from twisted.internet import reactor, defer
 import txmdp
+from txmdp.worker import TxWorkerEcho
 
 class TestBroker( unittest.TestCase ):
 
@@ -52,9 +51,7 @@ class TestBroker( unittest.TestCase ):
         else:
             endpoint = self.endpoint
 
-        worker = txmdp.make_socket( 'worker', self.endpoint, 'service_a' )
-        worker.on_request = on_request
-
+        worker = TxWorkerEcho( txmdp.factory, self.endpoint, 'service_a' )
         client = txmdp.make_socket( 'client', endpoint, 'service_a' )
 
         msg = 'get me some'
