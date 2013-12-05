@@ -15,8 +15,6 @@ import txzmq
 
 from . import RequestTimeout
 
-PROTO_VERSION = b'MDPC01'
-
 class TxMDPClient( txzmq.ZmqREQConnection ):
     """
     MDP client class
