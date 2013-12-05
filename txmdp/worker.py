@@ -141,8 +141,10 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         logger.debug( "worker(%s) <- %s", self.identity, msg )
 
         msg.pop(0)              # 1st part is empty
-        proto = msg.pop(0)      # 2nd part is protocol version, TODO check ver
+        proto = msg.pop(0)      # 2nd part is protocol version
         msg_type = msg.pop(0)   # 3rd part is message type
+
+        assert proto == TxMDPWorker._mdp_ver # do something intelligent
 
         if msg_type == b'\x05': # disconnect
             self.curr_liveness = 0 # reconnect will be triggered by hb timer
