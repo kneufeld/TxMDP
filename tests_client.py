@@ -47,7 +47,7 @@ class TestClient( unittest.TestCase ):
 
     def test_double_send(self):
         d = self.client.request( "an important message" )
-        self.client.request( "an important message" )
+        self.client.request( "another important message" )
         self.failureResultOf(d).trap( RuntimeError )
 
         # now make sure we everything was correctly reset after internal error

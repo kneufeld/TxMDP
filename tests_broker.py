@@ -50,7 +50,7 @@ class TestBroker( unittest.TestCase ):
             endpoint = 'tcp://127.0.0.1:5657'
             self.broker = txmdp.make_socket( 'broker', self.endpoint, endpoint )
         else:
-            endpoint = 'tcp://127.0.0.1:5656'
+            endpoint = self.endpoint
 
         worker = txmdp.make_socket( 'worker', self.endpoint, 'service_a' )
         worker.on_request = on_request
@@ -60,13 +60,15 @@ class TestBroker( unittest.TestCase ):
         msg = 'get me some'
         d = task.deferLater( reactor, 0.1, client.request, msg, 1 )
         d.addCallback( my_callback )
-        d.addBoth( self.stop )
+
+        d0 = task.deferLater( reactor, 0.2, client.request, msg, 1 )
+        d0.addCallback( my_callback )
+        d0.addBoth( self.stop )
 
         reactor.run()
 
-        self.assertEqual( called, [True] )
-        self.assertEqual( [msg], self.successResultOf(d) )
-        client.shutdown()
+        self.assertTrue( len(called) > 0 )
+        self.assertEqual( [msg], self.successResultOf(d0) )
 
 
     def _test_timeout(self):
