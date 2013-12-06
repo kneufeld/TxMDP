@@ -10,17 +10,20 @@ from txmdp.worker import TxWorkerEcho
 class TestBroker( unittest.TestCase ):
 
     def setUp(self):
-        self.endpoint = 'tcp://127.0.0.1:15656'
-        self.broker = txmdp.make_socket( 'broker', self.endpoint, None )
         self.clock = task.Clock()
         #reactor.callLater = self.clock.callLater
 
-    def tearDown(self):
-        self.broker.shutdown()
+        self.endpoint = 'tcp://127.0.0.1:15656'
+        self.broker = txmdp.make_socket( 'broker', self.endpoint, None )
 
-    def stop(self, msg):
-        reactor.stop()
-        return msg
+        self.service = 'service_a'
+        self.worker = TxWorkerEcho( txmdp.factory, self.endpoint, self.service )
+        self.client = txmdp.make_socket( 'client', self.endpoint, self.service )
+
+    def tearDown(self):
+        self.client.shutdown()
+        self.worker.shutdown()
+        self.broker.shutdown()
 
     def test_creation(self):
         self.assertTrue( isinstance(self.broker, txmdp.TxMDPBroker) )
@@ -32,75 +35,35 @@ class TestBroker( unittest.TestCase ):
         self.broker = txmdp.make_socket( 'broker', self.endpoint, 'tcp://127.0.0.1:15657' )
         self.assertIsNot( self.broker.backend, self.broker.frontend )
 
-    def test_recv_garbage(self):
-
-        called = []
-        def my_callback(msg):
-            called.append(True)
-            print "my_callback", msg
-            return msg
-
-        def on_request( worker, msg ):
-            print "on_request", msg
-            worker.reply(msg)
-
-        if True:
-            self.broker.shutdown()
-            endpoint = 'tcp://127.0.0.1:15657'
-            self.broker = txmdp.make_socket( 'broker', self.endpoint, endpoint )
-        else:
-            endpoint = self.endpoint
-
-        service = 'service_a'
-        worker = TxWorkerEcho( txmdp.factory, self.endpoint, service )
-        client = txmdp.make_socket( 'client', endpoint, service )
+    def test_recv_1(self):
+        """
+        frontend == backend
+        """
+        def asserts( reply, original ):
+            self.assertEqual( reply[0], original )
 
         msg = 'get me some'
-        d = task.deferLater( reactor, 0.1, client.request, service, msg, 1 )
-        d.addCallback( my_callback )
+        d = self.client.request( self.service, msg, 1 )
+        d.addCallback( asserts, msg )
 
-        d0 = task.deferLater( reactor, 0.2, client.request, service, msg, 1 )
-        d0.addCallback( my_callback )
-        d0.addBoth( self.stop )
+        return d
 
-        reactor.run()
+    def test_recv_2(self):
+        """
+        frontend != backend
+        """
+        def asserts( reply, original, things ):
+            self.assertEqual( reply[0], original )
+            map( lambda t: t.shutdown(), things )
 
-        self.assertTrue( len(called) > 0 )
-        self.assertEqual( [msg], self.successResultOf(d0) )
+        broker = txmdp.make_socket( 'broker', 'tcp://127.0.0.1:25656', 'tcp://127.0.0.1:25657' )
+        worker = TxWorkerEcho( txmdp.factory, broker.backend_ep[1], self.service )
+        client = txmdp.make_socket( 'client', broker.frontend_ep[1], self.service )
 
-
-    def _test_timeout(self):
-        d = self.broker.request( "an important message", 0.1 )
-        self.assertIsInstance( d, defer.Deferred )
-
-        self.clock.advance(0.1)
-        self.failureResultOf(d).trap( txmdp.RequestTimeout )
-
-    def _test_timeout_2(self):
-        # this is more for my benefit of learning Twisted than a real test
-        # as I believe it's functionaly identical to prev test
-
-        called = []
-
-        def my_errback( f, *args ):
-            called.append(True)
-            self.assertIsInstance( f.value, txmdp.RequestTimeout )
-
-        d = self.broker.request( "an important message", 0.1 )
-        d.addErrback( my_errback )
-
-        self.clock.advance(0.1)
-        self.assertEqual( called, [True] )
-
-    def _test_double_send(self):
-        d = self.broker.request( "an important message" )
-        self.broker.request( "an important message" )
-        self.failureResultOf(d).trap( RuntimeError )
-
-        # now make sure we everything was correctly reset after internal error
-        d = self.broker.request( "an important message" )
-        self.assertIsInstance( d, defer.Deferred )
-
+        msg = 'get me some'
+        d = self.client.request( self.service, msg, 1 )
+        d.addCallback( asserts, msg, [broker,worker,client] )
+        return d
 
 if __name__ == '__main__':
     unittest.main()
