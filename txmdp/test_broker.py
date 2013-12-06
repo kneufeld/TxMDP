@@ -51,14 +51,15 @@ class TestBroker( unittest.TestCase ):
         else:
             endpoint = self.endpoint
 
-        worker = TxWorkerEcho( txmdp.factory, self.endpoint, 'service_a' )
-        client = txmdp.make_socket( 'client', endpoint, 'service_a' )
+        service = 'service_a'
+        worker = TxWorkerEcho( txmdp.factory, self.endpoint, service )
+        client = txmdp.make_socket( 'client', endpoint, service )
 
         msg = 'get me some'
-        d = task.deferLater( reactor, 0.1, client.request, msg, 1 )
+        d = task.deferLater( reactor, 0.1, client.request, service, msg, 1 )
         d.addCallback( my_callback )
 
-        d0 = task.deferLater( reactor, 0.2, client.request, msg, 1 )
+        d0 = task.deferLater( reactor, 0.2, client.request, service, msg, 1 )
         d0.addCallback( my_callback )
         d0.addBoth( self.stop )
 

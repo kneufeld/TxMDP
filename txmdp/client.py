@@ -27,7 +27,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
 
     _mdp_ver = b'MDPC01'
 
-    def __init__(self, factory, endpoint, service):
+    def __init__(self, factory, endpoint, service=None):
         """
         Initialize TxMDPClient
 
@@ -35,15 +35,15 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :type factory:   ZmqFactory
         :param endpoint: the zmq connection string
         :type endpoint:  str
-        :param service:  the worker service to use
-        :type service:   str
+        :param service: the default service, caller can use as a cache
+        :type service:  str
         """
         identity = str(uuid.uuid4())[:8] # 8 random chars outta be good enough for anybody
 
         self.endpoint = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.connect, endpoint)
         super(TxMDPClient,self).__init__(factory, self.endpoint, identity )
 
-        self.service = service
+        self.service = service # write only in this class
 
         # bit of a hack but you can't reset d_waiting from inside
         # the callback chain
@@ -71,7 +71,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         self.waiting = False
         self.d_waiting = None
 
-    def request(self, msg, timeout=None):
+    def request(self, service, msg, timeout=None):
         """
         send request to broker
 
@@ -99,10 +99,12 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
             # or to reset() and return None so the next call to request() will work
             return
 
+        self.service = service # so it's always showing the last service call
+
         if type(msg) not in ( tuple, list ):
             msg = [msg]
 
-        outgoing = [self._mdp_ver, self.service]
+        outgoing = [self._mdp_ver, service]
         outgoing.extend( msg )
 
         self.d_waiting = self.sendMsg( *outgoing )

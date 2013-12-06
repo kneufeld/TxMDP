@@ -23,7 +23,7 @@ class TestClient( unittest.TestCase ):
         self.assertEqual( self.client.service, 'service_a' )
 
     def test_timeout(self):
-        d = self.client.request( "an important message", 0.1 )
+        d = self.client.request( self.client.service, "an important message", 0.1 )
         self.assertIsInstance( d, defer.Deferred )
 
         self.clock.advance(0.1)
@@ -39,19 +39,19 @@ class TestClient( unittest.TestCase ):
             called.append(True)
             self.assertIsInstance( f.value, txmdp.RequestTimeout )
 
-        d = self.client.request( "an important message", 0.1 )
+        d = self.client.request( self.client.service, "an important message", 0.1 )
         d.addErrback( my_errback )
 
         self.clock.advance(0.1)
         self.assertEqual( called, [True] )
 
     def test_double_send(self):
-        d = self.client.request( "an important message" )
-        self.client.request( "another important message" )
+        d = self.client.request( self.client.service, "an important message" )
+        self.client.request( self.client.service, "another important message" )
         self.failureResultOf(d).trap( RuntimeError )
 
         # now make sure we everything was correctly reset after internal error
-        d = self.client.request( "an important message" )
+        d = self.client.request( self.client.service, "an important message" )
         self.assertIsInstance( d, defer.Deferred )
 
 
