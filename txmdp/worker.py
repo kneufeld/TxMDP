@@ -62,6 +62,8 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         self.hb_send()
         self.hb_recv()
 
+        logger.info( "creating: %s", self )
+
     @property
     def is_open(self):
         return self.socket is not None
@@ -127,7 +129,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
 
         self.envelope = None
 
-        logger.debug( "worker(%s) -> %s", self.identity, to_send )
+        logger.debug( "worker(%s) -> reply, num frames: %d", self.identity, len(to_send) )
         self.sendMultipart(to_send)
 
 
@@ -138,7 +140,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         """
         msg = list(msg)
 
-        logger.debug( "worker(%s) <- %s", self.identity, msg )
+        #logger.debug( "worker(%s) <- %s", self.identity, msg )
 
         msg.pop(0)              # 1st part is empty
         proto = msg.pop(0)      # 2nd part is protocol version
@@ -157,6 +159,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
             envelope = [ b'', self._mdp_ver, b'\x03'] + envelope # REPLY
             self.envelope = envelope
 
+            logger.debug( "worker(%s) <- %s", self.identity, msg )
             self.on_request(self,msg)
         else:
             logger.warn( "worker(%s) <- unknown message: %s", self.service, msg )

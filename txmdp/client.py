@@ -152,7 +152,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :param msg:   list of message frames
         :type msg:    list of str
         """
-        logger.debug( "client(%s) <- %s", self.identity, msg )
+        logger.debug( "client(%s) <- num frames %d", self.identity, len(msg) )
 
         self.waiting = False
         self._cancel_timeout()

@@ -47,6 +47,8 @@ class TxMDPBroker(object):
         if frontend_ep is None:
             self.frontend_ep = self.backend_ep
             self.frontend = self.backend
+
+            logger.info( "frontend using same socket as backend" )
         else:
             self.frontend_ep = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.bind, frontend_ep)
             self.frontend = txzmq.ZmqRouterConnection(factory, self.frontend_ep, 'broker_frontend')
@@ -202,7 +204,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "client(%s) -> response: %s", rp[0], msg )
+        logger.debug( "client(%s) -> response: num frames: %d", rp[0], len(msg) )
 
         to_send = rp[1:] + [ b'', TxMDPBroker._mdp_client_ver, service]
         to_send.extend(msg)
@@ -240,7 +242,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "worker(%s) <- reply: %s", rp[0], msg )
+        logger.debug( "worker(%s) <- reply: num frames: %d", rp[0], len(msg) )
 
         ret_id = rp[0]
         wrep = self._workers.get(ret_id)
@@ -278,7 +280,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "worker(%s) <- heartbeat", rp[0] )
+        #logger.debug( "worker(%s) <- heartbeat", rp[0] )
 
         ret_id = rp[0]
 
@@ -379,7 +381,7 @@ class TxMDPBroker(object):
             wqueue, wr = self._services[service]
             wid = wqueue.get()
             if not wid:
-                # no worker ready, queue message
+                logger.debug( "no worker ready, queue message" )
                 msg.insert(0, service)
                 wr.append( (proto, rp, msg) )
                 return
@@ -451,6 +453,7 @@ class TxMDPBroker(object):
         elif proto.startswith(self._mdp_client_ver):
             self.on_client(proto, rp, msg)
         else:
+            logger.debug( "bad msg: %s", msg )
             logger.warn( "unknown protocol: %s", proto )
 
 
@@ -492,7 +495,7 @@ class WorkerRep(object):
             self.broker.unregister_worker( self.id )
             return
 
-        logger.debug( "heartbeat -> worker(%s)", self.id )
+        #logger.debug( "heartbeat -> worker(%s)", self.id )
 
         hb_msg = [ b'', TxMDPBroker._mdp_worker_ver, b'\x04' ]
         self.broker.backend.sendMultipart( self.id, hb_msg )
