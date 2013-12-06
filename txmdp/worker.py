@@ -170,7 +170,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
 
         Must be overloaded!
         """
-        pass
+        raise NotImplementedError("please override TxMDPClient.on_request")
 
 class TxWorkerEcho( TxMDPWorker ):
     def on_request( self, _, msg ):
