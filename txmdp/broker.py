@@ -369,7 +369,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "client(%s) <- %s", rp[0], msg )
+        #logger.debug( "client(%s) <- %s", rp[0], msg )
 
         service = msg.pop(0)
 

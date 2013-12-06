@@ -52,7 +52,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         self.d_waiting = None
         self.d_timeout = None
 
-        logger.info( "creating client(%s): %s, %s", self.identity, self.endpoint, self.service )
+        logger.info( "creating client(%s) to %s", self.identity, self.endpoint )
 
     @property
     def is_open(self):
@@ -82,16 +82,16 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
 
         :rtype Deferred
         """
-        logger.debug( "client(%s) -> %s, %s", self.identity, self.service, msg )
+        logger.debug( "client(%s) -> request to %s", self.identity, service )
 
         if not self.is_open:
-            logger.error( "client(%s): socket is closed", self.service )
+            logger.error( "client(%s): socket is closed", service )
             raise RuntimeError("socket is closed")
 
         if self.waiting is False:
             self.d_waiting = None
         else:
-            logger.error( "client(%s): already waiting for a response", self.service )
+            logger.error( "client(%s): already waiting for a response", service )
             self.d_waiting.errback( RuntimeError("already waiting for a response") )
             self.reset()
 
@@ -141,7 +141,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         internal callback for when our request times out
         fire d_waiting as an error
         """
-        logger.warn( "client(%s) timed out", self.service )
+        logger.warn( "client(%s) timed out", self.identity )
         self.d_waiting.errback( RequestTimeout() )
 
     def _on_message(self, msg):
