@@ -1,0 +1,5 @@
+Twisted==13.2.0
+pyzmq==14.0.1
+pyzmq-mdp==0.2
+txZMQ==0.7.0
+zope.interface==4.0.5
