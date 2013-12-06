@@ -54,7 +54,8 @@ class TxMDPBroker(object):
 
             logger.info( "frontend listening on: %s", self.frontend )
 
-        self._workers = {}
+        self._workers = {} # worker.id -> worker
+
         # services contain the worker queue and the request queue
         self._services = {}
         self._worker_cmds = { b'\x01': self.on_ready,
@@ -105,6 +106,7 @@ class TxMDPBroker(object):
 
         for wrep in self._workers.values():
             self.unregister_worker( wrep.id )
+
         self._workers = {}
 
     def register_worker(self, wid, service):
@@ -242,25 +244,27 @@ class TxMDPBroker(object):
 
         ret_id = rp[0]
         wrep = self._workers.get(ret_id)
+
         if not wrep:
-            # worker not found, ignore message
+            logger.warn( "worker(%s) not found, ignoring message", ret_id )
             return
 
         service = wrep.service
 
         # make worker available again
         try:
-            wqueue, wr = self._services[service]
+            wqueue, req_queue = self._services[service]
             cp, msg = split_address(msg)
 
             self.client_response(cp, service, msg)
 
             wqueue.put(wrep.id)
-            if wr:
-                proto, rp, msg = wr.pop(0)
+
+            if req_queue:
+                proto, rp, msg = req_queue.pop(0)
                 self.on_client(proto, rp, msg)
+
         except KeyError:
-            # unknown service
             logger.warn( "worker(%s): unknown service: %s", rp[0], service )
             self.disconnect(ret_id)
 
@@ -516,10 +520,9 @@ class WorkerRep(object):
 
 
 class ServiceQueue(object):
-
-    """Class defining the Queue interface for workers for a service.
-
-    The methods on this class are the only ones used by the broker.
+    """
+    A given service can have several workers, rotate amongst them
+    when assigning work.
     """
 
     def __init__(self):
