@@ -396,6 +396,7 @@ class TxMDPBroker(object):
         except KeyError:
             # unknwon service, ignore request
             logger.warn( "client(%s) asked for unknown service: %s", rp[0], service )
+            self.client_response( rp, service, ['error','unknown service'] )
 
 
     def on_worker(self, proto, rp, msg):
