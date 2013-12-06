@@ -39,8 +39,6 @@ def make_socket( mdp_type, endpoint, service ):
     if mdp_type == 'client':
         return TxMDPClient( factory, endpoint, service )
     if mdp_type == 'broker':
-        endpoint = endpoint or default_broker_backend
-        service = service or default_broker_frontend
         return TxMDPBroker( factory, endpoint, service )
     if mdp_type == 'worker':
         return TxMDPWorker( factory, endpoint, service )
