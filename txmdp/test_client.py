@@ -10,7 +10,7 @@ import txmdp
 class TestClient( unittest.TestCase ):
 
     def setUp(self):
-        self.endpoint = 'tcp://127.0.0.1:5656'
+        self.endpoint = 'tcp://127.0.0.1:15656'
         self.client = txmdp.make_socket( 'client', self.endpoint, 'service_a' )
         self.clock = task.Clock()
         reactor.callLater = self.clock.callLater

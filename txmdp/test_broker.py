@@ -10,7 +10,7 @@ from txmdp.worker import TxWorkerEcho
 class TestBroker( unittest.TestCase ):
 
     def setUp(self):
-        self.endpoint = 'tcp://127.0.0.1:5656'
+        self.endpoint = 'tcp://127.0.0.1:15656'
         self.broker = txmdp.make_socket( 'broker', self.endpoint, None )
         self.clock = task.Clock()
         #reactor.callLater = self.clock.callLater
@@ -29,7 +29,7 @@ class TestBroker( unittest.TestCase ):
 
     def test_creation_2(self):
         self.broker.shutdown()
-        self.broker = txmdp.make_socket( 'broker', self.endpoint, 'tcp://127.0.0.1:5657' )
+        self.broker = txmdp.make_socket( 'broker', self.endpoint, 'tcp://127.0.0.1:15657' )
         self.assertIsNot( self.broker.backend, self.broker.frontend )
 
     def test_recv_garbage(self):
@@ -46,7 +46,7 @@ class TestBroker( unittest.TestCase ):
 
         if True:
             self.broker.shutdown()
-            endpoint = 'tcp://127.0.0.1:5657'
+            endpoint = 'tcp://127.0.0.1:15657'
             self.broker = txmdp.make_socket( 'broker', self.endpoint, endpoint )
         else:
             endpoint = self.endpoint
