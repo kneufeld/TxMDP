@@ -99,7 +99,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
             # or to reset() and return None so the next call to request() will work
             return
 
-        if not isinstance( msg, list ):
+        if type(msg) not in ( tuple, list ):
             msg = [msg]
 
         outgoing = [self._mdp_ver, self.service]
