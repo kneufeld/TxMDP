@@ -27,6 +27,9 @@ txzmq.ZmqConnection.__str__ = lambda self: "%s(%s)" % (self.__class__.__name__,"
 factory = txzmq.ZmqFactory()
 factory.registerForShutdown()
 
+default_broker_frontend = 'tcp://127.0.0.1:5657'
+default_broker_backend = 'tcp://127.0.0.1:5656'
+
 def make_socket( mdp_type, endpoint, service ):
     """
     mdp_type: str: client, worker, broker
@@ -36,7 +39,9 @@ def make_socket( mdp_type, endpoint, service ):
     if mdp_type == 'client':
         return TxMDPClient( factory, endpoint, service )
     if mdp_type == 'broker':
-        return TxMDPBroker( factory, endpoint, frontend_ep=service )
+        endpoint = endpoint or default_broker_backend
+        service = service or default_broker_frontend
+        return TxMDPBroker( factory, endpoint, service )
     if mdp_type == 'worker':
         return TxMDPWorker( factory, endpoint, service )
 
