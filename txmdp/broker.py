@@ -138,6 +138,8 @@ class TxMDPBroker(object):
             wqueue.put(wid)
             self._services[service] = (wqueue, [])
 
+        self.check_for_work( service )
+
 
     def unregister_worker(self, wid):
         """Unregister the worker with the given id.
@@ -168,6 +170,12 @@ class TxMDPBroker(object):
 
         del self._workers[wid]
 
+    def check_for_work( self, service ):
+        wqueue, req_queue = self._services[service]
+
+        if req_queue:
+            proto, rp, msg = req_queue.pop(0)
+            self.on_client(proto, rp, msg)
 
     def disconnect(self, wid):
         """Send disconnect command and unregister worker.
@@ -262,10 +270,7 @@ class TxMDPBroker(object):
 
             wqueue.put(wrep.id)
 
-            if req_queue:
-                proto, rp, msg = req_queue.pop(0)
-                self.on_client(proto, rp, msg)
-
+            self.check_for_work( service )
         except KeyError:
             logger.warn( "worker(%s): unknown service: %s", rp[0], service )
             self.disconnect(ret_id)
@@ -333,7 +338,7 @@ class TxMDPBroker(object):
             self.client_response(rp, service, [ret])
         else:
             self.client_response(rp, service, [b'501'])
-        return
+
 
     def on_client(self, proto, rp, msg):
         """Method called on client message.
@@ -394,7 +399,7 @@ class TxMDPBroker(object):
             logger.debug( "%s -> worker(%s)", to_send, wid )
             self.backend.sendMultipart( wid, to_send )
         except KeyError:
-            # unknwon service, ignore request
+            # unknown service, ignore request
             logger.warn( "client(%s) asked for unknown service: %s", rp[0], service )
             self.client_response( rp, service, ['error','unknown service'] )
 
