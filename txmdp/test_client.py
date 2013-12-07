@@ -1,5 +1,8 @@
 #!/usr/bin/env trial
 
+import logging
+logging.disable(logging.CRITICAL)
+
 import time
 from twisted.trial import unittest
 from twisted.internet import task
