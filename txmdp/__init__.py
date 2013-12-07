@@ -16,7 +16,7 @@ handler = logging.StreamHandler()
 handler.setFormatter( logging.Formatter('%(asctime)s %(name)s: %(message)s', "%H:%M:%S") )
 logger.handlers = [handler]
 
-logger.setLevel( logging.DEBUG )
+logger.setLevel( logging.INFO )
 
 import txzmq
 

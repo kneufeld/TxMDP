@@ -52,7 +52,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         self.d_waiting = None
         self.d_timeout = None
 
-        logger.info( "creating client(%s) to %s", self.identity, self.endpoint )
+        logger.debug( "creating client(%s) to %s", self.identity, self.endpoint )
 
     @property
     def is_open(self):
