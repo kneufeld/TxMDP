@@ -45,13 +45,6 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
 
         self.service = service # write only in this class
 
-        # bit of a hack but you can't reset d_waiting from inside
-        # the callback chain
-        self.waiting = False
-
-        self.d_waiting = None
-        self.d_timeout = None
-
         logger.debug( "creating client(%s) to %s", self.identity, self.endpoint )
 
     @property
@@ -59,17 +52,8 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         return self.socket is not None
 
     def shutdown(self):
-        self.reset()
         if self.is_open:
             super(TxMDPClient,self).shutdown()
-
-    def reset(self):
-        """
-        call after an error or received message
-        """
-        self._cancel_timeout()
-        self.waiting = False
-        self.d_waiting = None
 
     def request(self, service, msg, timeout=None):
         """
@@ -88,17 +72,6 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
             logger.error( "client(%s): socket is closed", service )
             raise RuntimeError("socket is closed")
 
-        if self.waiting is False:
-            self.d_waiting = None
-        else:
-            logger.error( "client(%s): already waiting for a response", service )
-            self.d_waiting.errback( RuntimeError("already waiting for a response") )
-            self.reset()
-
-            # the choice is to not reset() and return the error'd d_waiting
-            # or to reset() and return None so the next call to request() will work
-            return
-
         self.service = service # so it's always showing the last service call
 
         if type(msg) not in ( tuple, list ):
@@ -107,15 +80,16 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         outgoing = [self._mdp_ver, service]
         outgoing.extend( msg )
 
-        self.d_waiting = self.sendMsg( *outgoing )
-        self.d_waiting.addCallback( self._on_message )
-        self.waiting = True
+        # some shenanigans here, the one defer cancels/fires the other
+        d_waiting = self.sendMsg( *outgoing )
+        d_timeout = self._make_timeout(timeout, d_waiting)
 
-        self._start_timeout(timeout)
+        d_waiting.addCallback( self._cancel_timeout, d_timeout )
+        d_waiting.addCallback( self._on_message )
 
-        return self.d_waiting
+        return d_waiting
 
-    def _start_timeout(self, timeout):
+    def _make_timeout(self, timeout, d_waiting):
         """
         start the timeout callback
 
@@ -123,28 +97,28 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :type timeout:  float
         """
         if not timeout:
-            return
+            return None
 
-        self.d_timeout = reactor.callLater( timeout, self._on_timeout )
+        return reactor.callLater( timeout, self._on_timeout, d_waiting )
 
-    def _cancel_timeout(self):
+    def _cancel_timeout(self, msg, d_timeout):
         """
         cancel the timeout callback
         """
         try:
-            self.d_timeout.cancel()
+            d_timeout.cancel()
         except (AttributeError,error.AlreadyCalled,error.AlreadyCancelled):
             pass
 
-        self.d_timeout = None
+        return msg
 
-    def _on_timeout(self):
+    def _on_timeout(self, d_waiting):
         """
         internal callback for when our request times out
         fire d_waiting as an error
         """
         logger.warn( "client(%s) timed out", self.identity )
-        self.d_waiting.errback( RequestTimeout() )
+        d_waiting.errback( RequestTimeout() )
 
     def _on_message(self, msg):
         """
@@ -155,9 +129,6 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :type msg:    list of str
         """
         logger.debug( "client(%s) <- num frames %d", self.identity, len(msg) )
-
-        self.waiting = False
-        self._cancel_timeout()
 
         msg.pop(0) # strip proto ver
         msg.pop(0) # strip service

@@ -25,6 +25,14 @@ class TestClient( unittest.TestCase ):
         self.assertTrue( isinstance(self.client, txmdp.TxMDPClient) )
         self.assertEqual( self.client.service, 'service_a' )
 
+    def test_shutdown(self):
+        self.client.shutdown()
+        self.client.shutdown() # idempotent
+
+    def test_cant_request(self):
+        self.client.shutdown()
+        self.assertRaises( RuntimeError, self.client.request, 's', 'foo' )
+
     def test_timeout(self):
         d = self.client.request( self.client.service, "an important message", 0.1 )
         self.assertIsInstance( d, defer.Deferred )
@@ -49,13 +57,9 @@ class TestClient( unittest.TestCase ):
         self.assertEqual( called, [True] )
 
     def test_double_send(self):
-        d = self.client.request( self.client.service, "an important message" )
-        self.client.request( self.client.service, "another important message" )
-        self.failureResultOf(d).trap( RuntimeError )
-
-        # now make sure we everything was correctly reset after internal error
-        d = self.client.request( self.client.service, "an important message" )
-        self.assertIsInstance( d, defer.Deferred )
+        d1 = self.client.request( self.client.service, "an important message" )
+        d2 = self.client.request( self.client.service, "another important message" )
+        self.assertIsNot( d1, d2 )
 
 
 if __name__ == '__main__':
