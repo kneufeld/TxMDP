@@ -67,6 +67,13 @@ class TxMDPBroker(object):
 
         self.hb_start_timer()
 
+    def _get_worker( self, wid ):
+        if type(wid) is list:
+            wid = wid[0]
+
+        wrep = self._workers[wid]
+        return wrep
+
     def hb_start_timer(self):
         self.hb_check_timer = reactor.callLater( self._hb_interval, self.on_timer )
 
@@ -154,7 +161,7 @@ class TxMDPBroker(object):
         :rtype: None
         """
         try:
-            wrep = self._workers[wid]
+            wrep = self._get_worker(wid)
         except KeyError:
             # not registered, ignore
             return
@@ -188,7 +195,7 @@ class TxMDPBroker(object):
         :rtype: None
         """
         try:
-            wrep = self._workers[wid]
+            wrep = self._get_worker(wid)
         except KeyError:
             # not registered, ignore
             return
@@ -253,10 +260,11 @@ class TxMDPBroker(object):
         logger.debug( "worker(%s) <- reply: num frames: %d", rp[0], len(msg) )
 
         ret_id = rp[0]
-        wrep = self._workers.get(ret_id)
 
-        if not wrep:
-            logger.warn( "worker(%s) not found, ignoring message", ret_id )
+        try:
+            wrep = self._get_worker(ret_id)
+        except IndexError:
+            logger.warn( "<- unknown worker(%s), ignoring message", ret_id )
             return
 
         service = wrep.service
