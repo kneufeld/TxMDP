@@ -114,7 +114,7 @@ class TxMDPBroker(object):
         self._cancel( self.hb_check_timer )
 
         for wrep in self._workers.values():
-            self.unregister_worker( wrep.id )
+            self.disconnect( wrep.id )
 
         self._workers = {}
 
