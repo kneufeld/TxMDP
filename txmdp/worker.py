@@ -49,7 +49,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         :param service:  the worker service to use
         :type service:   str
         """
-        identity = str(uuid.uuid4())[:8] # 8 random chars outta be good enough for anybody
+        identity = str(uuid.uuid4())[:8] # 8 random chars otta be good enough for anybody
 
         self.endpoint = txzmq.ZmqEndpoint(txzmq.ZmqEndpointType.connect, endpoint)
         super(TxMDPWorker,self).__init__(factory, self.endpoint, identity)
