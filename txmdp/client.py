@@ -45,7 +45,10 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
 
         self.service = service # write only in this class
 
-        logger.debug( "creating client(%s) to %s", self.identity, self.endpoint )
+        logger.info( "creating %s to %s", self, self.endpoint )
+
+    def __str__(self):
+        return "client(%s)" % self.identity
 
     @property
     def is_open(self):
@@ -66,10 +69,10 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
 
         :rtype Deferred
         """
-        logger.debug( "client(%s) -> request to %s", self.identity, service )
+        logger.debug( "%s -> request to %s", self, service )
 
         if not self.is_open:
-            logger.error( "client(%s): socket is closed", service )
+            logger.error( "%s socket is closed", service )
             raise RuntimeError("socket is closed")
 
         self.service = service # so it's always showing the last service call
@@ -117,7 +120,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         internal callback for when our request times out
         fire d_waiting as an error
         """
-        logger.warn( "client(%s) timed out", self.identity )
+        logger.warn( "%s timed out", self )
         d_waiting.errback( RequestTimeout() )
 
     def _on_message(self, msg):
@@ -128,7 +131,7 @@ class TxMDPClient( txzmq.ZmqREQConnection ):
         :param msg:   list of message frames
         :type msg:    list of str
         """
-        logger.debug( "client(%s) <- num frames %d", self.identity, len(msg) )
+        logger.debug( "%s <- num frames %d", self, len(msg) )
 
         msg.pop(0) # strip proto ver
         msg.pop(0) # strip service
@@ -144,7 +147,7 @@ if __name__ == "__main__":
     from txmdp import make_socket
     endpoint = 'tcp://127.0.0.1:5656'
     client = make_socket( 'client', endpoint, 'service_a' )
-    d = client.request("get me some", 0.25)
+    d = client.request('service_a', 'get me some', 0.25)
     d.addBoth( stop )
 
     reactor.run()

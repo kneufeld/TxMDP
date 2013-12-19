@@ -62,7 +62,10 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         self.hb_send()
         self.hb_recv()
 
-        logger.info( "creating: %s", self )
+        logger.info( "creating %s to %s", self, self.endpoint )
+
+    def __str__(self):
+        return "worker(%s,%s)" % (self.identity,self.service)
 
     @property
     def is_open(self):
@@ -97,7 +100,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         d = self.sendMultipart( ready_msg )
         self.curr_liveness = self._hb_liveness
 
-        logger.debug( "worker(%s) -> ready message", self.service )
+        logger.debug( "%s -> ready message", self )
 
 
     def _cancel( self, call ):
@@ -117,19 +120,21 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         super(TxMDPWorker,self).shutdown()
 
     def reply(self, msg):
-        """Send the given message.
+        """
+        Send the given message.
 
         msg can either be a byte-string or a list of byte-strings.
         """
         if not isinstance(msg, list):
             msg = [msg]
 
-        to_send = self.envelope
+        to_send = self.envelope or []
+        #print type(to_send),to_send
         to_send.extend(msg)
 
         self.envelope = None
 
-        logger.debug( "worker(%s) -> reply, num frames: %d", self.identity, len(to_send) )
+        logger.debug( "%s -> reply, num frames: %d", self, len(to_send) )
         self.sendMultipart(to_send)
 
 
@@ -140,7 +145,7 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
         """
         msg = list(msg)
 
-        #logger.debug( "worker(%s) <- %s", self.identity, msg )
+        #logger.debug( "%s <- %s", self, msg )
 
         msg.pop(0)              # 1st part is empty
         proto = msg.pop(0)      # 2nd part is protocol version
@@ -159,10 +164,10 @@ class TxMDPWorker( txzmq.ZmqDealerConnection ):
             envelope = [ b'', self._mdp_ver, b'\x03'] + envelope # REPLY
             self.envelope = envelope
 
-            logger.debug( "worker(%s) <- %s", self.identity, msg )
+            logger.debug( "%s <- num frames %d", self, len(msg) )
             self.on_request(self,msg)
         else:
-            logger.warn( "worker(%s) <- unknown message: %s", self.service, msg )
+            logger.warn( "%s <- unknown message: %s", self, msg )
 
 
     def on_request(self, worker, msg):

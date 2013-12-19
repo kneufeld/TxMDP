@@ -130,7 +130,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "registering worker: %s", wid )
+        logger.debug( "registering worker: %s, %s", wid, service )
 
         if wid in self._workers:
             return
@@ -166,7 +166,7 @@ class TxMDPBroker(object):
             # not registered, ignore
             return
 
-        logger.debug( "unregistering worker: %s", wid )
+        logger.debug( "unregistering worker: %s, %s", wid, wrep.service )
 
         wrep.shutdown()
         service = wrep.service
@@ -200,7 +200,7 @@ class TxMDPBroker(object):
             # not registered, ignore
             return
 
-        logger.info( "disconnecting worker(%s)", wid )
+        logger.info( "disconnecting %s", wrep )
 
         to_send = [ '', TxMDPBroker._mdp_worker_ver, b'\x05' ]
         self.backend.sendMultipart( wid, to_send )
@@ -219,7 +219,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "client(%s) -> response: num frames: %d", rp[0], len(msg) )
+        logger.debug( "-> client(%s) response: num frames: %d", rp[0], len(msg) )
 
         to_send = rp[1:] + [ b'', TxMDPBroker._mdp_client_ver, service]
         to_send.extend(msg)
@@ -239,7 +239,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "worker(%s) <- ready message", rp[0] )
+        logger.debug( "<- worker(%s): ready message", rp[0] )
 
         ret_id = rp[0]
         self.register_worker(ret_id, msg[0])
@@ -257,8 +257,6 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "worker(%s) <- reply: num frames: %d", rp[0], len(msg) )
-
         ret_id = rp[0]
 
         try:
@@ -266,6 +264,8 @@ class TxMDPBroker(object):
         except IndexError:
             logger.warn( "<- unknown worker(%s), ignoring message", ret_id )
             return
+
+        logger.debug( "<- %s reply: num frames: %d", wrep, len(msg) )
 
         service = wrep.service
 
@@ -280,7 +280,7 @@ class TxMDPBroker(object):
 
             self.check_for_work( service )
         except KeyError:
-            logger.warn( "worker(%s): unknown service: %s", rp[0], service )
+            logger.warn( "%s: unknown service: %s", wrep, service )
             self.disconnect(ret_id)
 
     def on_heartbeat(self, rp, msg):
@@ -293,9 +293,8 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        #logger.debug( "worker(%s) <- heartbeat", rp[0] )
-
         ret_id = rp[0]
+        #logger.debug( "<- worker(%s) heartbeat", ret_id )
 
         try:
             worker = self._workers[ret_id]
@@ -382,7 +381,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        #logger.debug( "client(%s) <- %s", rp[0], msg )
+        #logger.debug( "<- client(%s): num frames %d", rp[0], len(msg) )
 
         service = msg.pop(0)
 
@@ -404,7 +403,7 @@ class TxMDPBroker(object):
             to_send.append(b'')
             to_send.extend(msg)
 
-            logger.debug( "%s -> worker(%s)", to_send, wid )
+            logger.debug( "-> worker(%s): %d", wid, len(to_send) )
             self.backend.sendMultipart( wid, to_send )
         except KeyError:
             # unknown service, ignore request
@@ -431,7 +430,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        #logger.debug( "worker(%s) <- %s", rp[0], msg )
+        #logger.debug( "<- worker(%s): %s", rp[0], msg )
 
         cmd = msg.pop(0)
 
@@ -496,6 +495,8 @@ class WorkerRep(object):
 
         self.hb_send()
 
+    def __str__(self):
+        return "worker(%s,%s)" % (self.id, self.service)
 
     def hb_start_timer(self):
         self._hb_send_timer = reactor.callLater( TxMDPBroker._hb_interval, self.hb_send )
@@ -509,7 +510,7 @@ class WorkerRep(object):
             self.broker.unregister_worker( self.id )
             return
 
-        #logger.debug( "heartbeat -> worker(%s)", self.id )
+        #logger.debug( "-> %s: heartbeat", self )
 
         hb_msg = [ b'', TxMDPBroker._mdp_worker_ver, b'\x04' ]
         self.broker.backend.sendMultipart( self.id, hb_msg )
