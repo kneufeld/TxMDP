@@ -219,7 +219,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        logger.debug( "-> client(%s) response: num frames: %d", rp[0], len(msg) )
+        logger.debug( "-> client(%s): response, num frames: %d", rp[0], len(msg) )
 
         to_send = rp[1:] + [ b'', TxMDPBroker._mdp_client_ver, service]
         to_send.extend(msg)
@@ -265,7 +265,7 @@ class TxMDPBroker(object):
             logger.warn( "<- unknown worker(%s), ignoring message", ret_id )
             return
 
-        logger.debug( "<- %s reply: num frames: %d", wrep, len(msg) )
+        logger.debug( "<- %s: reply, num frames: %d", wrep, len(msg) )
 
         service = wrep.service
 
@@ -381,7 +381,7 @@ class TxMDPBroker(object):
 
         :rtype: None
         """
-        #logger.debug( "<- client(%s): num frames %d", rp[0], len(msg) )
+        logger.debug( "<- client(%s): num frames: %d", rp[0], len(msg) )
 
         service = msg.pop(0)
 
@@ -403,7 +403,7 @@ class TxMDPBroker(object):
             to_send.append(b'')
             to_send.extend(msg)
 
-            logger.debug( "-> worker(%s): %d", wid, len(to_send) )
+            logger.debug( "-> worker(%s): request, num frames: %d", wid, len(to_send) )
             self.backend.sendMultipart( wid, to_send )
         except KeyError:
             # unknown service, ignore request
