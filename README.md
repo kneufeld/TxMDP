@@ -26,6 +26,7 @@ with some more load testing.
 
 ## TODO
 
+* get on [PyPy](http://pypy.org)!
 * more tests!
 * documentation!
 * clean room re-implementation of txZMQ to re-release this under MIT license
