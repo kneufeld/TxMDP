@@ -1,12 +1,8 @@
 """
-Twisted implementation of ZeroMQ Majordomo Protocol
+Twisted implementation of ZeroMQ Majordomo Protocol - Client
 
 MDP specification can be found at http://rfc.zeromq.org/spec:7
 """
-
-__license__ = 'MIT'
-__author__ = 'Kurt Neufeld'
-__email__ = 'kneufeld@burgundywall.com'
 
 import logging
 logger = logging.getLogger('txmdp.client')
